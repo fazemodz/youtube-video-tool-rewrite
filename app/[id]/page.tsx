@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import useDarkMode from '../utils/useDarkMode';
 
 interface VideoSnippet {
     publishedAt: string;
@@ -67,16 +68,10 @@ export default function Page() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [showRaw, setShowRaw] = useState(false);
-    const [darkMode, setDarkMode] = useState(false);
     const [mounted, setMounted] = useState(false);
+    const [dark] = useDarkMode();
 
-    const toggleDarkMode = () => {
-        const newDarkMode = !darkMode;
-        setDarkMode(newDarkMode);
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('darkMode', JSON.stringify(newDarkMode));
-        }
-    };
+    useEffect(() => { setMounted(true); }, []);
 
     const linkifyText = (text: string) => {
         const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -89,10 +84,7 @@ export default function Page() {
                         href={part}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ 
-                            color: darkMode ? '#60a5fa' : '#0066cc', 
-                            textDecoration: 'underline' 
-                        }}
+                        className={`${dark ? 'text-blue-400' : 'text-blue-600'} underline`}
                     >
                         {part}
                     </a>
@@ -101,17 +93,6 @@ export default function Page() {
             return part;
         });
     };
-
-    useEffect(() => {
-        // Set mounted to true after component mounts
-        setMounted(true);
-        
-        // Load dark mode preference from localStorage
-        const stored = localStorage.getItem('darkMode');
-        if (stored) {
-            setDarkMode(JSON.parse(stored));
-        }
-    }, []);
 
     useEffect(() => {
         const fetchVideo = async () => {
@@ -131,62 +112,34 @@ export default function Page() {
         if (params.id) fetchVideo();
     }, [params.id]);
 
-    // Prevent hydration mismatch by not rendering until mounted
-    if (!mounted) {
-        return (
-            <div style={{
-                minHeight: '100vh',
-                width: '100%',
-                background: 'linear-gradient(135deg, #f0f4ff 0%, #e8eaf6 100%)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '20px',
-                boxSizing: 'border-box',
-            }}>
-                <p style={{fontSize: 20, color: '#555'}}>Loading...</p>
-            </div>
-        );
-    }
+    // Update page title when video data is loaded
+    useEffect(() => {
+        if (videoData && videoData.items && videoData.items.length > 0) {
+            const video = videoData.items[0];
+            const videoTitle = video.snippet.title;
+            const videoDescription = video.snippet.description;
+            
+            // Truncate description to reasonable length for title
+            const truncatedDescription = videoDescription.length > 50 
+                ? videoDescription.substring(0, 50) + '...' 
+                : videoDescription;
+            
+            document.title = `${videoTitle} - ${truncatedDescription} - YouTube Video Tool`;
+        } else if (loading) {
+            document.title = 'Loading... - YouTube Video Tool';
+        } else if (error) {
+            document.title = 'Error - YouTube Video Tool';
+        } else {
+            document.title = 'YouTube Video Tool';
+        }
+    }, [videoData, loading, error]);
+
+    if (!mounted) return null;
 
     return (
-        <div style={{
-            minHeight: '100vh',
-            width: '100%',
-            background: darkMode 
-                ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)' 
-                : 'linear-gradient(135deg, #f0f4ff 0%, #e8eaf6 100%)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
-            boxSizing: 'border-box',
-        }}>
-            <button 
-                onClick={toggleDarkMode}
-                style={{
-                    position: 'fixed',
-                    top: '20px',
-                    right: '20px',
-                    padding: '10px 16px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: darkMode ? '#374151' : '#ffffff',
-                    color: darkMode ? '#ffffff' : '#000000',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                    zIndex: 1000,
-                }}
-            >
-                {darkMode ? '☀️ Light' : '🌙 Dark'}
-            </button>
-            
-            {loading && <p style={{fontSize: 20, color: darkMode ? '#d1d5db' : '#555'}}>Loading...</p>}
-            {error && <p style={{color: '#ef4444', fontSize: 18}}>Error: {error}</p>}
+        <div className={`min-h-screen w-full flex flex-col items-center justify-center p-5 box-border transition-colors duration-300 ${dark ? 'bg-gradient-to-br from-[#1a1a2e] to-[#16213e]' : 'bg-gradient-to-br from-[#f0f4ff] to-[#e8eaf6]'}`}>
+            {loading && <p className={`text-[20px] ${dark ? 'text-gray-300' : 'text-gray-700'}`}>Loading...</p>}
+            {error && <p className="text-red-500 text-[18px]">Error: {error}</p>}
             {videoData && videoData.items && videoData.items.length > 0 && (() => {
                 const video = videoData.items[0];
                 const snippet = video.snippet;
@@ -194,106 +147,42 @@ export default function Page() {
                 const thumbnail = snippet.thumbnails.maxres?.url || snippet.thumbnails.high?.url || snippet.thumbnails.medium?.url || snippet.thumbnails.default?.url;
                 return (
                     <>
-                        <div style={{
-                            background: darkMode ? '#1f2937' : '#f9f9f9',
-                            borderRadius: 12,
-                            padding: 24,
-                            maxWidth: 700,
-                            width: '100%',
-                            margin: '0 auto',
-                            boxShadow: darkMode ? '0 2px 16px rgba(0,0,0,0.3)' : '0 2px 16px rgba(0,0,0,0.1)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            color: darkMode ? '#f9fafb' : '#000000',
-                        }}>
-                            <div style={{position: 'relative', width: '100%', maxWidth: 640, marginBottom: 16}}>
+                        <div className={`rounded-xl p-6 max-w-[700px] w-full mx-auto shadow-lg flex flex-col items-center ${dark ? 'bg-gray-800 text-gray-100 shadow-black/40' : 'bg-gray-50 text-black shadow-black/10'}`}>
+                            <div className="relative w-full max-w-[640px] mb-4">
                                 <Image 
                                     src={thumbnail} 
                                     alt={snippet.title} 
                                     width={640}
                                     height={360}
-                                    style={{width: '100%', borderRadius: 8, objectFit: 'cover'}}
+                                    className="w-full rounded-lg object-cover"
                                     priority
                                 />
                             </div>
-                            <div style={{
-                                display: 'flex', 
-                                gap: 24, 
-                                marginBottom: 12, 
-                                fontSize: 16, 
-                                justifyContent: 'center', 
-                                width: '100%',
-                                color: darkMode ? '#d1d5db' : '#000000',
-                            }}>
+                            <div className={`flex gap-6 mb-3 text-[16px] justify-center w-full ${dark ? 'text-gray-300' : 'text-black'}`}> 
                                 <span>👁️ {Number(stats.viewCount).toLocaleString()} views</span>
                                 <span>👍 {Number(stats.likeCount).toLocaleString()} likes</span>
                                 <span>💬 {Number(stats.commentCount).toLocaleString()} comments</span>
                             </div>
-                            <h2 style={{
-                                margin: '8px 0', 
-                                textAlign: 'center',
-                                color: darkMode ? '#f9fafb' : '#000000',
-                            }}>{snippet.title}</h2>
-                            <p style={{
-                                color: darkMode ? '#9ca3af' : '#666', 
-                                margin: '4px 0', 
-                                textAlign: 'center'
-                            }}>By <b>{snippet.channelTitle}</b> &bull; Published: {new Date(snippet.publishedAt).toLocaleDateString()}</p>
-                            <div style={{
-                                margin: '12px 0', 
-                                color: darkMode ? '#d1d5db' : '#333', 
-                                whiteSpace: 'pre-line', 
-                                textAlign: 'left', 
-                                width: '100%'
-                            }}>{linkifyText(snippet.description)}</div>
+                            <h2 className={`my-2 text-center text-2xl font-semibold ${dark ? 'text-gray-100' : 'text-black'}`}>{snippet.title}</h2>
+                            <p className={`text-center my-1 ${dark ? 'text-gray-400' : 'text-gray-600'}`}>By <b>{snippet.channelTitle}</b> &bull; Published: {new Date(snippet.publishedAt).toLocaleDateString()}</p>
+                            <div className={`my-3 whitespace-pre-line text-left w-full ${dark ? 'text-gray-300' : 'text-gray-800'}`}>{linkifyText(snippet.description)}</div>
                             {snippet.tags && (
-                                <div style={{margin: '12px 0', width: '100%'}}>
-                                    <b style={{color: darkMode ? '#f9fafb' : '#000000'}}>Tags:</b> {snippet.tags.slice(0, 10).map((tag: string) => (
-                                        <span key={tag} style={{
-                                            display: 'inline-block', 
-                                            background: darkMode ? '#374151' : '#eee', 
-                                            color: darkMode ? '#d1d5db' : '#000000',
-                                            borderRadius: 4, 
-                                            padding: '2px 8px', 
-                                            margin: '0 4px 4px 0', 
-                                            fontSize: 12
-                                        }}>{tag}</span>
+                                <div className="my-3 w-full">
+                                    <b className={`${dark ? 'text-gray-100' : 'text-black'}`}>Tags:</b> {snippet.tags.slice(0, 10).map((tag: string) => (
+                                        <span key={tag} className={`inline-block rounded px-2 py-1 mr-1 mb-1 text-xs ${dark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-black'}`}>{tag}</span>
                                     ))}
-                                    {snippet.tags.length > 10 && <span style={{
-                                        fontSize: 12, 
-                                        color: darkMode ? '#9ca3af' : '#888'
-                                    }}>+{snippet.tags.length - 10} more</span>}
+                                    {snippet.tags.length > 10 && <span className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>+{snippet.tags.length - 10} more</span>}
                                 </div>
                             )}
                         </div>
-                        <div style={{maxWidth: 700, width: '100%', margin: '24px auto 0 auto', textAlign: 'center'}}>
-                            <button onClick={() => setShowRaw(v => !v)} style={{
-                                padding: '10px 20px', 
-                                borderRadius: 6, 
-                                border: darkMode ? '1px solid #4b5563' : '1px solid #bbb', 
-                                background: darkMode ? '#374151' : '#fff', 
-                                color: darkMode ? '#f9fafb' : '#000000',
-                                cursor: 'pointer', 
-                                fontWeight: 500, 
-                                fontSize: 16, 
-                                boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
-                            }}>
+                        <div className="max-w-[700px] w-full mx-auto mt-6 text-center">
+                            <button onClick={() => setShowRaw(v => !v)} className={`px-5 py-2 rounded-md font-medium text-[16px] shadow-sm transition-colors ${dark ? 'border border-gray-600 bg-gray-700 text-gray-100 hover:bg-gray-600' : 'border border-gray-300 bg-white text-black hover:bg-gray-100'}`}>
                                 {showRaw ? 'Hide' : 'Show'} Raw Manifest
                             </button>
                             {showRaw && (
-                                <pre style={{
-                                    textAlign: 'left', 
-                                    background: darkMode ? '#111827' : '#222', 
-                                    color: '#fff', 
-                                    padding: 16, 
-                                    borderRadius: 8, 
-                                    marginTop: 12, 
-                                    overflowX: 'auto', 
-                                    fontSize: 13, 
-                                    maxHeight: 400, 
-                                    width: '100%'
-                                }}>{JSON.stringify(videoData, null, 2)}</pre>
+                                <pre className="text-left bg-black text-white p-4 rounded-lg mt-3 overflow-x-auto text-xs max-h-[400px] w-full">
+                                    {JSON.stringify(videoData, null, 2)}
+                                </pre>
                             )}
                         </div>
                     </>
